@@ -88,10 +88,8 @@ export default function App() {
     return context;
   }, []);
 
-  const playTypingSound = useCallback(() => {
+  const synthTypingSound = useCallback((context: AudioContext) => {
     if (isMuted) return;
-    const context = typingAudioContextRef.current;
-    if (!context || context.state !== 'running') return;
 
     const now = context.currentTime;
     const clickDuration = 0.045;
@@ -138,12 +136,8 @@ export default function App() {
     bodyOscillator.stop(now + 0.065);
   }, [isMuted]);
 
-  const playTerminalBlip = useCallback(() => {
+  const synthTerminalBlip = useCallback((context: AudioContext) => {
     if (isMuted) return;
-
-    const context = typingAudioContextRef.current;
-    if (!context || context.state !== 'running') return;
-
     const now = context.currentTime;
     const oscillator = context.createOscillator();
     const harmonic = context.createOscillator();
@@ -175,6 +169,22 @@ export default function App() {
     oscillator.stop(now + 0.15);
     harmonic.stop(now + 0.15);
   }, [isMuted]);
+
+  const playTypingSound = useCallback(() => {
+    void prepareTypingAudio().then((context) => {
+      if (context) {
+        synthTypingSound(context);
+      }
+    });
+  }, [prepareTypingAudio, synthTypingSound]);
+
+  const playTerminalBlip = useCallback(() => {
+    void prepareTypingAudio().then((context) => {
+      if (context) {
+        synthTerminalBlip(context);
+      }
+    });
+  }, [prepareTypingAudio, synthTerminalBlip]);
 
   const stopHeartbeatAudio = useCallback(() => {
     const audio = audioRef.current;
