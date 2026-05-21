@@ -73,10 +73,9 @@ export default function App() {
     if (!audio) return;
 
     audio.volume = 0.35;
-    audio.muted = isMuted;
     audio.currentTime = 0;
     void audio.play().catch(() => {});
-  }, [isMuted]);
+  }, []);
 
   useEffect(() => {
     if (stage === 'reveal') {
@@ -122,6 +121,13 @@ export default function App() {
 
     stopHeartbeatAudio();
   }, [stage, revealUnlocked, startHeartbeatAudio, stopHeartbeatAudio]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    audio.muted = isMuted;
+  }, [isMuted]);
 
   return (
     <div 
