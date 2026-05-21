@@ -288,7 +288,7 @@ export default function App() {
                     stopHeartbeatAudio();
                     setStage('console');
                   }}
-                  className="text-white/40 hover:text-white/80 transition-colors uppercase text-xs tracking-[0.35em] font-mono"
+                  className="text-white/40 hover:text-white/80 transition-colors uppercase text-xs tracking-[0.35em] font-mono [text-shadow:0_0_1px_rgba(255,255,255,0.9),0_0_8px_rgba(255,77,109,0.25)]"
                 >
                   {revealHeadingReady && <Typewriter text="Re-encrypt" delay={70} />}
                 </motion.button>
