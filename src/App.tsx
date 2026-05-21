@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Terminal, Lock, Heart as HeartIcon, Sparkles } from 'lucide-react';
 import TextHeart from './components/TextHeart';
 
-const heartbeatTrack = new URL('../Massive Attack - Angel.mp3', import.meta.url).href;
+const heartbeatTrack = new URL('../Massive Attack - Angel_[cut_241sec].mp3', import.meta.url).href;
 
 const Typewriter = ({ text, delay = 50, onComplete }: { text: string, delay?: number, onComplete?: () => void }) => {
   const [currentText, setCurrentText] = useState("");
