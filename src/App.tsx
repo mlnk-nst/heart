@@ -1,11 +1,21 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Terminal, Lock, Heart as HeartIcon, Sparkles, Volume2, VolumeX } from 'lucide-react';
+import { Lock, Volume2, VolumeX } from 'lucide-react';
 import TextHeart from './components/TextHeart';
 
 const heartbeatTrack = new URL('../Massive Attack - Angel_[cut_241sec].mp3', import.meta.url).href;
 
-const Typewriter = ({ text, delay = 50, onComplete }: { text: string, delay?: number, onComplete?: () => void }) => {
+const Typewriter = ({
+  text,
+  delay = 50,
+  onType,
+  onComplete,
+}: {
+  text: string,
+  delay?: number,
+  onType?: () => void,
+  onComplete?: () => void
+}) => {
   const [currentText, setCurrentText] = useState("");
   const [index, setIndex] = useState(0);
 
@@ -19,17 +29,19 @@ const Typewriter = ({ text, delay = 50, onComplete }: { text: string, delay?: nu
       const timeout = setTimeout(() => {
         setCurrentText(prev => prev + text[index]);
         setIndex(prev => prev + 1);
+        onType?.();
       }, delay);
       return () => clearTimeout(timeout);
     } else if (onComplete) {
       onComplete();
     }
-  }, [index, text, delay, onComplete]);
+  }, [index, text, delay, onComplete, onType]);
 
   return <span className="font-mono">{currentText}</span>;
 };
 
 export default function App() {
+  const [hasStarted, setHasStarted] = useState(false);
   const [stage, setStage] = useState<'console' | 'reveal'>('console');
   const [consoleFinished, setConsoleFinished] = useState(false);
   const [revealUnlocked, setRevealUnlocked] = useState(false);
@@ -37,7 +49,9 @@ export default function App() {
   const [revealHeadingReady, setRevealHeadingReady] = useState(false);
   const [reEncryptReady, setReEncryptReady] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
+  const [showUnlockBurst, setShowUnlockBurst] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
+  const typingAudioContextRef = useRef<AudioContext | null>(null);
 
   const handleReveal = useCallback(() => {
     if (stage === 'console' && consoleFinished) {
@@ -46,8 +60,121 @@ export default function App() {
   }, [stage, consoleFinished]);
 
   const unlockReveal = useCallback(() => {
+    if (navigator.vibrate) {
+      navigator.vibrate([30, 50, 30]);
+    }
+
+    setShowUnlockBurst(true);
     setRevealUnlocked(true);
   }, []);
+
+  const prepareTypingAudio = useCallback(async () => {
+    const AudioContextConstructor =
+      window.AudioContext ||
+      (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+
+    if (!AudioContextConstructor) return null;
+
+    let context = typingAudioContextRef.current;
+    if (!context) {
+      context = new AudioContextConstructor();
+      typingAudioContextRef.current = context;
+    }
+
+    if (context.state === 'suspended') {
+      await context.resume();
+    }
+
+    return context;
+  }, []);
+
+  const playTypingSound = useCallback(() => {
+    if (isMuted) return;
+    const context = typingAudioContextRef.current;
+    if (!context || context.state !== 'running') return;
+
+    const now = context.currentTime;
+    const clickDuration = 0.045;
+    const noiseBuffer = context.createBuffer(1, Math.floor(context.sampleRate * clickDuration), context.sampleRate);
+    const channelData = noiseBuffer.getChannelData(0);
+
+    for (let i = 0; i < channelData.length; i += 1) {
+      channelData[i] = (Math.random() * 2 - 1) * 0.4;
+    }
+
+    const noiseSource = context.createBufferSource();
+    noiseSource.buffer = noiseBuffer;
+
+    const noiseFilter = context.createBiquadFilter();
+    noiseFilter.type = 'bandpass';
+    noiseFilter.frequency.value = 2400;
+    noiseFilter.Q.value = 0.8;
+
+    const noiseGain = context.createGain();
+    noiseGain.gain.setValueAtTime(0.001, now);
+    noiseGain.gain.exponentialRampToValueAtTime(0.18, now + 0.003);
+    noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.055);
+
+    const bodyOscillator = context.createOscillator();
+    bodyOscillator.type = 'triangle';
+    bodyOscillator.frequency.setValueAtTime(145, now);
+    bodyOscillator.frequency.exponentialRampToValueAtTime(90, now + 0.06);
+
+    const bodyGain = context.createGain();
+    bodyGain.gain.setValueAtTime(0.001, now);
+    bodyGain.gain.exponentialRampToValueAtTime(0.11, now + 0.003);
+    bodyGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.07);
+
+    noiseSource.connect(noiseFilter);
+    noiseFilter.connect(noiseGain);
+    noiseGain.connect(context.destination);
+
+    bodyOscillator.connect(bodyGain);
+    bodyGain.connect(context.destination);
+
+    noiseSource.start(now);
+    noiseSource.stop(now + clickDuration);
+    bodyOscillator.start(now);
+    bodyOscillator.stop(now + 0.065);
+  }, [isMuted]);
+
+  const playTerminalBlip = useCallback(() => {
+    if (isMuted) return;
+
+    const context = typingAudioContextRef.current;
+    if (!context || context.state !== 'running') return;
+
+    const now = context.currentTime;
+    const oscillator = context.createOscillator();
+    const harmonic = context.createOscillator();
+    const gainNode = context.createGain();
+    const filter = context.createBiquadFilter();
+
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(880, now);
+    oscillator.frequency.exponentialRampToValueAtTime(1180, now + 0.05);
+
+    harmonic.type = 'triangle';
+    harmonic.frequency.setValueAtTime(1320, now);
+    harmonic.frequency.exponentialRampToValueAtTime(1760, now + 0.05);
+
+    filter.type = 'lowpass';
+    filter.frequency.value = 2600;
+
+    gainNode.gain.setValueAtTime(0.0001, now);
+    gainNode.gain.exponentialRampToValueAtTime(0.09, now + 0.01);
+    gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 0.14);
+
+    oscillator.connect(filter);
+    harmonic.connect(filter);
+    filter.connect(gainNode);
+    gainNode.connect(context.destination);
+
+    oscillator.start(now);
+    harmonic.start(now);
+    oscillator.stop(now + 0.15);
+    harmonic.stop(now + 0.15);
+  }, [isMuted]);
 
   const stopHeartbeatAudio = useCallback(() => {
     const audio = audioRef.current;
@@ -83,6 +210,7 @@ export default function App() {
       setShowRevealText(false);
       setRevealHeadingReady(false);
       setReEncryptReady(false);
+      setShowUnlockBurst(false);
     }
   }, [stage]);
 
@@ -129,8 +257,21 @@ export default function App() {
     audio.muted = isMuted;
   }, [isMuted]);
 
+  useEffect(() => {
+    if (!showUnlockBurst) return;
+
+    const timeout = window.setTimeout(() => {
+      setShowUnlockBurst(false);
+    }, 1400);
+
+    return () => window.clearTimeout(timeout);
+  }, [showUnlockBurst]);
+
   return (
     <div 
+      onPointerDown={() => {
+        void prepareTypingAudio();
+      }}
       onClick={() => {
         handleReveal();
         if (stage === 'console' && consoleFinished) {
@@ -150,7 +291,27 @@ export default function App() {
       <div className="scanline" />
       
       <AnimatePresence mode="wait">
-        {stage === 'console' ? (
+        {!hasStarted ? (
+          <motion.div
+            key="boot"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="flex min-h-screen w-full items-center justify-center p-8"
+          >
+            <button
+              type="button"
+              onClick={async (e) => {
+                e.stopPropagation();
+                await prepareTypingAudio();
+                setHasStarted(true);
+              }}
+              className="border border-pink-deep/30 bg-pink-deep/5 px-6 py-3 font-mono text-xs uppercase tracking-[0.35em] text-pink-soft transition-colors hover:border-pink-deep/55 hover:bg-pink-deep/10 hover:text-white"
+            >
+              Tap to initialize
+            </button>
+          </motion.div>
+        ) : stage === 'console' ? (
           <motion.div
             key="console"
             initial={{ opacity: 0 }}
@@ -164,7 +325,10 @@ export default function App() {
                 <Typewriter 
                   text="Initializing heart.PROTOCOL_v2.0..." 
                   delay={30} 
-                  onComplete={() => setConsoleFinished(true)}
+                  onComplete={() => {
+                    playTerminalBlip();
+                    setConsoleFinished(true);
+                  }}
                 />
               </div>
               
@@ -195,6 +359,7 @@ export default function App() {
                     id="decrypt-button"
                     onClick={(e) => {
                       e.stopPropagation();
+                      void prepareTypingAudio();
                       void startHeartbeatAudio();
                       setStage('reveal');
                     }}
@@ -225,6 +390,48 @@ export default function App() {
               }
             }}
           >
+            {!revealUnlocked && <div className="heartbeat-pulse-flash" />}
+
+            <AnimatePresence>
+              {revealUnlocked && (
+                <motion.div
+                  initial={{ opacity: 0.75, scale: 0.7 }}
+                  animate={{ opacity: 0, scale: 1.45 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.95, ease: 'easeOut' }}
+                  className="pointer-events-none absolute left-1/2 top-1/2 z-10 h-[18rem] w-[18rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,rgba(255,77,109,0.34)_0%,rgba(255,77,109,0.12)_35%,rgba(255,77,109,0)_72%)]"
+                />
+              )}
+            </AnimatePresence>
+
+            <AnimatePresence>
+              {showUnlockBurst && (
+                <>
+                  <motion.div
+                    initial={{ opacity: 0.92, scale: 0.18 }}
+                    animate={{ opacity: 0, scale: 2.1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.85, ease: 'easeOut' }}
+                    className="pointer-events-none absolute left-1/2 top-1/2 z-20 h-[26rem] w-[26rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.98)_0%,rgba(255,214,224,0.95)_12%,rgba(255,143,177,0.72)_28%,rgba(255,77,109,0.34)_46%,rgba(255,77,109,0.12)_60%,rgba(255,77,109,0)_76%)] blur-[2px]"
+                  />
+                  <motion.div
+                    initial={{ opacity: 0.7, scale: 0.14 }}
+                    animate={{ opacity: 0, scale: 2.7 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 1.15, ease: 'easeOut', delay: 0.03 }}
+                    className="pointer-events-none absolute left-1/2 top-1/2 z-20 h-[34rem] w-[34rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,rgba(255,196,214,0.58)_0%,rgba(255,143,177,0.28)_26%,rgba(255,77,109,0.12)_44%,rgba(255,77,109,0)_68%)]"
+                  />
+                  <motion.div
+                    initial={{ opacity: 0.48, scale: 0.2 }}
+                    animate={{ opacity: 0, scale: 1.45 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.55, ease: 'easeOut' }}
+                    className="pointer-events-none absolute left-1/2 top-1/2 z-20 h-40 w-40 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white blur-xl"
+                  />
+                </>
+              )}
+            </AnimatePresence>
+
             <button
               type="button"
               onClick={(e) => {
@@ -259,6 +466,7 @@ export default function App() {
                     key={showRevealText ? 'decrypted-live' : 'decrypted-idle'}
                     text="Decrypted"
                     delay={80}
+                    onType={playTypingSound}
                     onComplete={() => setRevealHeadingReady(true)}
                   />
                   <span className="terminal-cursor ml-1 inline-block align-middle" />
@@ -283,6 +491,7 @@ export default function App() {
                     <Typewriter
                       text="Re-encrypt"
                       delay={70}
+                      onType={playTypingSound}
                       onComplete={() => setReEncryptReady(true)}
                     />
                   )}
