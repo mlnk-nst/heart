@@ -88,22 +88,46 @@ export default function App() {
     if (!audio) return;
 
     if (stage === 'reveal' && !revealUnlocked) {
+      audio.pause();
       audio.volume = 0.35;
 
-      const playFromStartTime = () => {
-        audio.currentTime = heartbeatStartTime;
+      const playAfterSeek = () => {
         void audio.play().catch(() => {});
       };
 
+      const seekToStartTime = () => {
+        const startPlayback = () => {
+          if (Math.abs(audio.currentTime - heartbeatStartTime) < 0.5) {
+            playAfterSeek();
+            return;
+          }
+
+          audio.addEventListener('seeked', playAfterSeek, { once: true });
+        };
+
+        try {
+          if (typeof audio.fastSeek === 'function') {
+            audio.fastSeek(heartbeatStartTime);
+          } else {
+            audio.currentTime = heartbeatStartTime;
+          }
+        } catch {
+          audio.currentTime = heartbeatStartTime;
+        }
+
+        startPlayback();
+      };
+
       if (audio.readyState >= 1) {
-        playFromStartTime();
+        seekToStartTime();
       } else {
         audio.load();
-        audio.addEventListener('loadedmetadata', playFromStartTime, { once: true });
+        audio.addEventListener('loadedmetadata', seekToStartTime, { once: true });
       }
 
       return () => {
-        audio.removeEventListener('loadedmetadata', playFromStartTime);
+        audio.removeEventListener('loadedmetadata', seekToStartTime);
+        audio.removeEventListener('seeked', playAfterSeek);
       };
     }
 
