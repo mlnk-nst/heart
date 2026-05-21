@@ -36,6 +36,8 @@ export default function App() {
   const [revealUnlocked, setRevealUnlocked] = useState(false);
   const [showRevealText, setShowRevealText] = useState(false);
   const [revealHeadingReady, setRevealHeadingReady] = useState(false);
+  const [reEncryptReady, setReEncryptReady] = useState(false);
+  const fallbackAudioRef = useRef<HTMLAudioElement>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioBufferRef = useRef<AudioBuffer | null>(null);
   const audioGainRef = useRef<GainNode | null>(null);
@@ -51,13 +53,23 @@ export default function App() {
     setRevealUnlocked(true);
   }, []);
 
+  const shouldUseFallbackAudio = useCallback(() => {
+    return window.matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;
+  }, []);
+
   const stopHeartbeatAudio = useCallback(() => {
     const source = audioSourceRef.current;
-    if (!source) return;
+    if (source) {
+      source.stop();
+      source.disconnect();
+      audioSourceRef.current = null;
+    }
 
-    source.stop();
-    source.disconnect();
-    audioSourceRef.current = null;
+    const fallbackAudio = fallbackAudioRef.current;
+    if (fallbackAudio) {
+      fallbackAudio.pause();
+      fallbackAudio.currentTime = 0;
+    }
   }, []);
 
   const prepareHeartbeatAudio = useCallback(async () => {
@@ -97,6 +109,17 @@ export default function App() {
   }, []);
 
   const startHeartbeatAudio = useCallback(async () => {
+    if (shouldUseFallbackAudio()) {
+      const fallbackAudio = fallbackAudioRef.current;
+      if (!fallbackAudio) return;
+
+      fallbackAudio.volume = 0.35;
+      fallbackAudio.src = `${heartbeatTrack}#t=${heartbeatStartTime}`;
+      fallbackAudio.load();
+      void fallbackAudio.play().catch(() => {});
+      return;
+    }
+
     const context = await prepareHeartbeatAudio();
     if (!context || !audioBufferRef.current || !audioGainRef.current) {
       return;
@@ -112,13 +135,14 @@ export default function App() {
     source.connect(audioGainRef.current);
     source.start(0, heartbeatStartTime);
     audioSourceRef.current = source;
-  }, [prepareHeartbeatAudio, stopHeartbeatAudio]);
+  }, [prepareHeartbeatAudio, shouldUseFallbackAudio, stopHeartbeatAudio]);
 
   useEffect(() => {
     if (stage === 'reveal') {
       setRevealUnlocked(false);
       setShowRevealText(false);
       setRevealHeadingReady(false);
+      setReEncryptReady(false);
     }
   }, [stage]);
 
@@ -176,6 +200,7 @@ export default function App() {
       }}
       className={`relative min-h-screen w-full flex items-center justify-center bg-[#050505] selection:bg-pink-deep/30 ${stage === 'console' && consoleFinished ? 'cursor-pointer' : ''}`}
     >
+      <audio ref={fallbackAudioRef} loop playsInline preload="auto" className="hidden" />
       <div className="scanline" />
       
       <AnimatePresence mode="wait">
@@ -283,6 +308,12 @@ export default function App() {
                 <div className="w-12 h-px bg-pink-deep/30 mx-auto mb-8" />
                 
                 <motion.button
+                  initial={false}
+                  animate={{
+                    borderColor: reEncryptReady ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0)',
+                    boxShadow: reEncryptReady ? '0 0 12px rgba(255, 77, 109, 0.12)' : '0 0 0 rgba(255, 77, 109, 0)',
+                  }}
+                  transition={{ duration: 0.35, ease: 'easeOut' }}
                   onClick={(e) => {
                     e.stopPropagation();
                     stopHeartbeatAudio();
@@ -290,7 +321,13 @@ export default function App() {
                   }}
                   className="border border-white/20 px-4 py-2 text-white/40 hover:border-white/45 hover:text-white/80 transition-colors uppercase text-xs tracking-[0.35em] font-mono [text-shadow:0_0_1px_rgba(255,255,255,0.9),0_0_8px_rgba(255,77,109,0.25)]"
                 >
-                  {revealHeadingReady && <Typewriter text="Re-encrypt" delay={70} />}
+                  {revealHeadingReady && (
+                    <Typewriter
+                      text="Re-encrypt"
+                      delay={70}
+                      onComplete={() => setReEncryptReady(true)}
+                    />
+                  )}
                 </motion.button>
               </motion.div>
             )}
