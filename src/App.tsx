@@ -144,20 +144,20 @@ export default function App() {
     const gainNode = context.createGain();
     const filter = context.createBiquadFilter();
 
-    oscillator.type = 'sine';
-    oscillator.frequency.setValueAtTime(880, now);
-    oscillator.frequency.exponentialRampToValueAtTime(1180, now + 0.05);
+    oscillator.type = 'triangle';
+    oscillator.frequency.setValueAtTime(520, now);
+    oscillator.frequency.exponentialRampToValueAtTime(760, now + 0.08);
 
-    harmonic.type = 'triangle';
-    harmonic.frequency.setValueAtTime(1320, now);
-    harmonic.frequency.exponentialRampToValueAtTime(1760, now + 0.05);
+    harmonic.type = 'sine';
+    harmonic.frequency.setValueAtTime(780, now);
+    harmonic.frequency.exponentialRampToValueAtTime(1040, now + 0.08);
 
     filter.type = 'lowpass';
-    filter.frequency.value = 2600;
+    filter.frequency.value = 2200;
 
     gainNode.gain.setValueAtTime(0.0001, now);
-    gainNode.gain.exponentialRampToValueAtTime(0.09, now + 0.01);
-    gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 0.14);
+    gainNode.gain.exponentialRampToValueAtTime(0.16, now + 0.012);
+    gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
 
     oscillator.connect(filter);
     harmonic.connect(filter);
@@ -166,8 +166,8 @@ export default function App() {
 
     oscillator.start(now);
     harmonic.start(now);
-    oscillator.stop(now + 0.15);
-    harmonic.stop(now + 0.15);
+    oscillator.stop(now + 0.24);
+    harmonic.stop(now + 0.24);
   }, [isMuted]);
 
   const playTypingSound = useCallback(() => {
