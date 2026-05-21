@@ -33,6 +33,7 @@ export default function App() {
   const [stage, setStage] = useState<'console' | 'reveal'>('console');
   const [consoleFinished, setConsoleFinished] = useState(false);
   const [revealUnlocked, setRevealUnlocked] = useState(false);
+  const [showRevealText, setShowRevealText] = useState(false);
   const [revealHeadingReady, setRevealHeadingReady] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
 
@@ -49,9 +50,23 @@ export default function App() {
   useEffect(() => {
     if (stage === 'reveal') {
       setRevealUnlocked(false);
+      setShowRevealText(false);
       setRevealHeadingReady(false);
     }
   }, [stage]);
+
+  useEffect(() => {
+    if (!revealUnlocked) {
+      setShowRevealText(false);
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      setShowRevealText(true);
+    }, 1200);
+
+    return () => window.clearTimeout(timeout);
+  }, [revealUnlocked]);
 
   useEffect(() => {
     if (stage !== 'reveal' || revealUnlocked) return;
@@ -174,16 +189,16 @@ export default function App() {
               </div>
             )}
 
-            {revealUnlocked && (
+            {showRevealText && (
               <motion.div
                 initial={{ scale: 0.8, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
-                transition={{ delay: 1.2, duration: 1.2 }}
+                transition={{ duration: 1.2 }}
                 className="z-20 text-center"
               >
                 <h2 className="text-pink-deep font-mono text-xl tracking-[0.3em] uppercase glow-text mb-2">
                   <Typewriter
-                    key={revealUnlocked ? 'decrypted-live' : 'decrypted-idle'}
+                    key={showRevealText ? 'decrypted-live' : 'decrypted-idle'}
                     text="Decrypted"
                     delay={80}
                     onComplete={() => setRevealHeadingReady(true)}
