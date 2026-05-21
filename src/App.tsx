@@ -55,6 +55,7 @@ export default function App() {
   const audioRef = useRef<HTMLAudioElement>(null);
   const typingAudioContextRef = useRef<AudioContext | null>(null);
   const startupBlipScheduledRef = useRef(false);
+  const startupCompleteHandledRef = useRef(false);
 
   const handleReveal = useCallback(() => {
     if (stage === 'console' && consoleFinished) {
@@ -228,6 +229,13 @@ export default function App() {
   }, [stage]);
 
   useEffect(() => {
+    if (hasStarted && stage === 'console') {
+      startupCompleteHandledRef.current = false;
+      setConsoleFinished(false);
+    }
+  }, [hasStarted, stage]);
+
+  useEffect(() => {
     if (!revealUnlocked) {
       setShowRevealText(false);
       return;
@@ -343,6 +351,9 @@ export default function App() {
                   text={startupText} 
                   delay={startupTypingDelay} 
                   onComplete={() => {
+                    if (startupCompleteHandledRef.current) return;
+                    startupCompleteHandledRef.current = true;
+
                     if (startupBlipScheduledRef.current) {
                       startupBlipScheduledRef.current = false;
                     } else {
