@@ -36,7 +36,10 @@ export default function App() {
   const [revealUnlocked, setRevealUnlocked] = useState(false);
   const [showRevealText, setShowRevealText] = useState(false);
   const [revealHeadingReady, setRevealHeadingReady] = useState(false);
-  const audioRef = useRef<HTMLAudioElement>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const audioBufferRef = useRef<AudioBuffer | null>(null);
+  const audioGainRef = useRef<GainNode | null>(null);
+  const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
 
   const handleReveal = useCallback(() => {
     if (stage === 'console' && consoleFinished) {
@@ -47,6 +50,52 @@ export default function App() {
   const unlockReveal = useCallback(() => {
     setRevealUnlocked(true);
   }, []);
+
+  const stopHeartbeatAudio = useCallback(() => {
+    const source = audioSourceRef.current;
+    if (!source) return;
+
+    source.stop();
+    source.disconnect();
+    audioSourceRef.current = null;
+  }, []);
+
+  const startHeartbeatAudio = useCallback(async () => {
+    let context = audioContextRef.current;
+
+    if (!context) {
+      context = new AudioContext();
+      audioContextRef.current = context;
+    }
+
+    if (context.state === 'suspended') {
+      await context.resume();
+    }
+
+    if (!audioGainRef.current) {
+      const gainNode = context.createGain();
+      gainNode.gain.value = 0.35;
+      gainNode.connect(context.destination);
+      audioGainRef.current = gainNode;
+    }
+
+    if (!audioBufferRef.current) {
+      const response = await fetch(heartbeatTrack);
+      const arrayBuffer = await response.arrayBuffer();
+      audioBufferRef.current = await context.decodeAudioData(arrayBuffer);
+    }
+
+    stopHeartbeatAudio();
+
+    const source = context.createBufferSource();
+    source.buffer = audioBufferRef.current;
+    source.loop = true;
+    source.loopStart = heartbeatStartTime;
+    source.loopEnd = audioBufferRef.current.duration;
+    source.connect(audioGainRef.current);
+    source.start(0, heartbeatStartTime);
+    audioSourceRef.current = source;
+  }, [stopHeartbeatAudio]);
 
   useEffect(() => {
     if (stage === 'reveal') {
@@ -84,63 +133,31 @@ export default function App() {
   }, [stage, revealUnlocked, unlockReveal]);
 
   useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-
     if (stage === 'reveal' && !revealUnlocked) {
-      audio.pause();
-      audio.volume = 0.35;
-
-      const playAfterSeek = () => {
-        void audio.play().catch(() => {});
-      };
-
-      const seekToStartTime = () => {
-        const startPlayback = () => {
-          if (Math.abs(audio.currentTime - heartbeatStartTime) < 0.5) {
-            playAfterSeek();
-            return;
-          }
-
-          audio.addEventListener('seeked', playAfterSeek, { once: true });
-        };
-
-        try {
-          if (typeof audio.fastSeek === 'function') {
-            audio.fastSeek(heartbeatStartTime);
-          } else {
-            audio.currentTime = heartbeatStartTime;
-          }
-        } catch {
-          audio.currentTime = heartbeatStartTime;
-        }
-
-        startPlayback();
-      };
-
-      if (audio.readyState >= 1) {
-        seekToStartTime();
-      } else {
-        audio.load();
-        audio.addEventListener('loadedmetadata', seekToStartTime, { once: true });
-      }
-
-      return () => {
-        audio.removeEventListener('loadedmetadata', seekToStartTime);
-        audio.removeEventListener('seeked', playAfterSeek);
-      };
+      void startHeartbeatAudio();
+      return;
     }
 
-    audio.pause();
-    audio.currentTime = 0;
-  }, [stage, revealUnlocked]);
+    stopHeartbeatAudio();
+  }, [stage, revealUnlocked, startHeartbeatAudio, stopHeartbeatAudio]);
+
+  useEffect(() => {
+    return () => {
+      stopHeartbeatAudio();
+      void audioContextRef.current?.close();
+    };
+  }, [stopHeartbeatAudio]);
 
   return (
     <div 
-      onClick={handleReveal}
+      onClick={() => {
+        handleReveal();
+        if (stage === 'console' && consoleFinished) {
+          void startHeartbeatAudio();
+        }
+      }}
       className={`relative min-h-screen w-full flex items-center justify-center bg-[#050505] selection:bg-pink-deep/30 ${stage === 'console' && consoleFinished ? 'cursor-pointer' : ''}`}
     >
-      <audio ref={audioRef} src={heartbeatTrack} loop preload="auto" />
       <div className="scanline" />
       
       <AnimatePresence mode="wait">
@@ -189,6 +206,7 @@ export default function App() {
                     id="decrypt-button"
                     onClick={(e) => {
                       e.stopPropagation();
+                      void startHeartbeatAudio();
                       setStage('reveal');
                     }}
                     className="group flex items-center gap-3 px-6 py-3 border border-pink-deep/30 bg-pink-deep/5 hover:bg-pink-deep/10 text-pink-soft transition-all duration-300 pointer-events-auto"
@@ -213,6 +231,7 @@ export default function App() {
             className="relative w-full h-screen flex items-center justify-center overflow-hidden"
             onClick={() => {
               if (!revealUnlocked) {
+                stopHeartbeatAudio();
                 unlockReveal();
               }
             }}
@@ -248,6 +267,7 @@ export default function App() {
                 <motion.button
                   onClick={(e) => {
                     e.stopPropagation();
+                    stopHeartbeatAudio();
                     setStage('console');
                   }}
                   className="text-white/40 hover:text-white/80 transition-colors uppercase text-xs tracking-[0.35em] font-mono"
