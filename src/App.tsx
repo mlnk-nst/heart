@@ -88,10 +88,23 @@ export default function App() {
     if (!audio) return;
 
     if (stage === 'reveal' && !revealUnlocked) {
-      audio.currentTime = heartbeatStartTime;
       audio.volume = 0.35;
-      void audio.play().catch(() => {});
-      return;
+
+      const playFromStartTime = () => {
+        audio.currentTime = heartbeatStartTime;
+        void audio.play().catch(() => {});
+      };
+
+      if (audio.readyState >= 1) {
+        playFromStartTime();
+      } else {
+        audio.load();
+        audio.addEventListener('loadedmetadata', playFromStartTime, { once: true });
+      }
+
+      return () => {
+        audio.removeEventListener('loadedmetadata', playFromStartTime);
+      };
     }
 
     audio.pause();
