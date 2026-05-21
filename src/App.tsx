@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Terminal, Lock, Heart as HeartIcon, Sparkles } from 'lucide-react';
+import { Terminal, Lock, Heart as HeartIcon, Sparkles, Volume2, VolumeX } from 'lucide-react';
 import TextHeart from './components/TextHeart';
 
 const heartbeatTrack = new URL('../Massive Attack - Angel_[cut_241sec].mp3', import.meta.url).href;
@@ -36,6 +36,7 @@ export default function App() {
   const [showRevealText, setShowRevealText] = useState(false);
   const [revealHeadingReady, setRevealHeadingReady] = useState(false);
   const [reEncryptReady, setReEncryptReady] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
 
   const handleReveal = useCallback(() => {
@@ -56,14 +57,26 @@ export default function App() {
     audio.currentTime = 0;
   }, []);
 
+  const toggleMute = useCallback(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    setIsMuted((current) => {
+      const next = !current;
+      audio.muted = next;
+      return next;
+    });
+  }, []);
+
   const startHeartbeatAudio = useCallback(async () => {
     const audio = audioRef.current;
     if (!audio) return;
 
     audio.volume = 0.35;
+    audio.muted = isMuted;
     audio.currentTime = 0;
     void audio.play().catch(() => {});
-  }, []);
+  }, [isMuted]);
 
   useEffect(() => {
     if (stage === 'reveal') {
@@ -206,6 +219,18 @@ export default function App() {
               }
             }}
           >
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleMute();
+              }}
+              className="absolute right-5 top-5 z-30 flex items-center gap-2 border border-white/15 bg-black/20 px-3 py-2 text-[10px] uppercase tracking-[0.25em] text-white/55 backdrop-blur-sm transition-colors hover:border-white/35 hover:text-white/90 md:right-8 md:top-8"
+            >
+              {isMuted ? <VolumeX size={14} /> : <Volume2 size={14} />}
+              <span>{isMuted ? 'Muted' : 'Sound'}</span>
+            </button>
+
             <div className="absolute inset-0">
               <TextHeart loop={!revealUnlocked} />
             </div>
