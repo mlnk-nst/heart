@@ -60,11 +60,19 @@ export default function App() {
     audioSourceRef.current = null;
   }, []);
 
-  const startHeartbeatAudio = useCallback(async () => {
+  const prepareHeartbeatAudio = useCallback(async () => {
     let context = audioContextRef.current;
 
     if (!context) {
-      context = new AudioContext();
+      const AudioContextConstructor =
+        window.AudioContext ||
+        (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+
+      if (!AudioContextConstructor) {
+        return null;
+      }
+
+      context = new AudioContextConstructor();
       audioContextRef.current = context;
     }
 
@@ -85,6 +93,15 @@ export default function App() {
       audioBufferRef.current = await context.decodeAudioData(arrayBuffer);
     }
 
+    return context;
+  }, []);
+
+  const startHeartbeatAudio = useCallback(async () => {
+    const context = await prepareHeartbeatAudio();
+    if (!context || !audioBufferRef.current || !audioGainRef.current) {
+      return;
+    }
+
     stopHeartbeatAudio();
 
     const source = context.createBufferSource();
@@ -95,7 +112,7 @@ export default function App() {
     source.connect(audioGainRef.current);
     source.start(0, heartbeatStartTime);
     audioSourceRef.current = source;
-  }, [stopHeartbeatAudio]);
+  }, [prepareHeartbeatAudio, stopHeartbeatAudio]);
 
   useEffect(() => {
     if (stage === 'reveal') {
@@ -152,6 +169,7 @@ export default function App() {
     <div 
       onClick={() => {
         handleReveal();
+        void prepareHeartbeatAudio();
         if (stage === 'console' && consoleFinished) {
           void startHeartbeatAudio();
         }
