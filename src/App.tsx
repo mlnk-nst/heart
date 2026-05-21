@@ -114,8 +114,7 @@ export default function App() {
       if (!fallbackAudio) return;
 
       fallbackAudio.volume = 0.35;
-      fallbackAudio.src = `${heartbeatTrack}#t=${heartbeatStartTime}`;
-      fallbackAudio.load();
+      fallbackAudio.currentTime = heartbeatStartTime;
       void fallbackAudio.play().catch(() => {});
       return;
     }
@@ -200,7 +199,14 @@ export default function App() {
       }}
       className={`relative min-h-screen w-full flex items-center justify-center bg-[#050505] selection:bg-pink-deep/30 ${stage === 'console' && consoleFinished ? 'cursor-pointer' : ''}`}
     >
-      <audio ref={fallbackAudioRef} loop playsInline preload="auto" className="hidden" />
+      <audio
+        ref={fallbackAudioRef}
+        src={heartbeatTrack}
+        loop
+        playsInline
+        preload="auto"
+        style={{ position: 'absolute', width: 1, height: 1, opacity: 0, pointerEvents: 'none' }}
+      />
       <div className="scanline" />
       
       <AnimatePresence mode="wait">
