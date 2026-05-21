@@ -4,6 +4,8 @@ import { Lock, Volume2, VolumeX } from 'lucide-react';
 import TextHeart from './components/TextHeart';
 
 const heartbeatTrack = new URL('../Massive Attack - Angel_[cut_241sec].mp3', import.meta.url).href;
+const startupText = "Initializing heart.PROTOCOL_v2.0...";
+const startupTypingDelay = 30;
 
 const Typewriter = ({
   text,
@@ -52,6 +54,7 @@ export default function App() {
   const [showUnlockBurst, setShowUnlockBurst] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
   const typingAudioContextRef = useRef<AudioContext | null>(null);
+  const startupBlipScheduledRef = useRef(false);
 
   const handleReveal = useCallback(() => {
     if (stage === 'console' && consoleFinished) {
@@ -136,9 +139,9 @@ export default function App() {
     bodyOscillator.stop(now + 0.065);
   }, [isMuted]);
 
-  const synthTerminalBlip = useCallback((context: AudioContext) => {
+  const synthTerminalBlip = useCallback((context: AudioContext, delaySeconds = 0) => {
     if (isMuted) return;
-    const now = context.currentTime;
+    const now = context.currentTime + delaySeconds;
     const oscillator = context.createOscillator();
     const harmonic = context.createOscillator();
     const gainNode = context.createGain();
@@ -178,10 +181,10 @@ export default function App() {
     });
   }, [prepareTypingAudio, synthTypingSound]);
 
-  const playTerminalBlip = useCallback(() => {
+  const playTerminalBlip = useCallback((delaySeconds = 0) => {
     void prepareTypingAudio().then((context) => {
       if (context) {
-        synthTerminalBlip(context);
+        synthTerminalBlip(context, delaySeconds);
       }
     });
   }, [prepareTypingAudio, synthTerminalBlip]);
@@ -313,7 +316,11 @@ export default function App() {
               type="button"
               onClick={async (e) => {
                 e.stopPropagation();
-                await prepareTypingAudio();
+                const context = await prepareTypingAudio();
+                if (context) {
+                  startupBlipScheduledRef.current = true;
+                  synthTerminalBlip(context, (startupText.length * startupTypingDelay) / 1000 + 0.05);
+                }
                 setHasStarted(true);
               }}
               className="border border-pink-deep/30 bg-pink-deep/5 px-6 py-3 font-mono text-xs uppercase tracking-[0.35em] text-pink-soft transition-colors hover:border-pink-deep/55 hover:bg-pink-deep/10 hover:text-white"
@@ -333,10 +340,14 @@ export default function App() {
               <div className="flex gap-2 text-pink-soft/60">
                 <span>[system]</span>
                 <Typewriter 
-                  text="Initializing heart.PROTOCOL_v2.0..." 
-                  delay={30} 
+                  text={startupText} 
+                  delay={startupTypingDelay} 
                   onComplete={() => {
-                    playTerminalBlip();
+                    if (startupBlipScheduledRef.current) {
+                      startupBlipScheduledRef.current = false;
+                    } else {
+                      playTerminalBlip();
+                    }
                     setConsoleFinished(true);
                   }}
                 />
