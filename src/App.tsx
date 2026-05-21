@@ -4,6 +4,7 @@ import { Terminal, Lock, Heart as HeartIcon, Sparkles } from 'lucide-react';
 import TextHeart from './components/TextHeart';
 
 const heartbeatTrack = new URL('../Massive Attack - Angel.mp3', import.meta.url).href;
+const heartbeatStartTime = 139;
 
 const Typewriter = ({ text, delay = 50, onComplete }: { text: string, delay?: number, onComplete?: () => void }) => {
   const [currentText, setCurrentText] = useState("");
@@ -87,7 +88,7 @@ export default function App() {
     if (!audio) return;
 
     if (stage === 'reveal' && !revealUnlocked) {
-      audio.currentTime = 0;
+      audio.currentTime = heartbeatStartTime;
       audio.volume = 0.35;
       void audio.play().catch(() => {});
       return;
@@ -212,7 +213,7 @@ export default function App() {
                     e.stopPropagation();
                     setStage('console');
                   }}
-                  className="text-white/20 hover:text-white/60 transition-colors uppercase text-[10px] tracking-widest font-mono"
+                  className="text-white/40 hover:text-white/80 transition-colors uppercase text-xs tracking-[0.35em] font-mono"
                 >
                   {revealHeadingReady && <Typewriter text="Re-encrypt" delay={70} />}
                 </motion.button>
