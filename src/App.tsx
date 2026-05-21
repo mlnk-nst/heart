@@ -4,7 +4,6 @@ import { Terminal, Lock, Heart as HeartIcon, Sparkles } from 'lucide-react';
 import TextHeart from './components/TextHeart';
 
 const heartbeatTrack = new URL('../Massive Attack - Angel.mp3', import.meta.url).href;
-const heartbeatStartTime = 139;
 
 const Typewriter = ({ text, delay = 50, onComplete }: { text: string, delay?: number, onComplete?: () => void }) => {
   const [currentText, setCurrentText] = useState("");
@@ -37,11 +36,7 @@ export default function App() {
   const [showRevealText, setShowRevealText] = useState(false);
   const [revealHeadingReady, setRevealHeadingReady] = useState(false);
   const [reEncryptReady, setReEncryptReady] = useState(false);
-  const fallbackAudioRef = useRef<HTMLAudioElement>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const audioBufferRef = useRef<AudioBuffer | null>(null);
-  const audioGainRef = useRef<GainNode | null>(null);
-  const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
 
   const handleReveal = useCallback(() => {
     if (stage === 'console' && consoleFinished) {
@@ -53,88 +48,22 @@ export default function App() {
     setRevealUnlocked(true);
   }, []);
 
-  const shouldUseFallbackAudio = useCallback(() => {
-    return window.matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;
-  }, []);
-
   const stopHeartbeatAudio = useCallback(() => {
-    const source = audioSourceRef.current;
-    if (source) {
-      source.stop();
-      source.disconnect();
-      audioSourceRef.current = null;
-    }
+    const audio = audioRef.current;
+    if (!audio) return;
 
-    const fallbackAudio = fallbackAudioRef.current;
-    if (fallbackAudio) {
-      fallbackAudio.pause();
-      fallbackAudio.currentTime = 0;
-    }
-  }, []);
-
-  const prepareHeartbeatAudio = useCallback(async () => {
-    let context = audioContextRef.current;
-
-    if (!context) {
-      const AudioContextConstructor =
-        window.AudioContext ||
-        (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-
-      if (!AudioContextConstructor) {
-        return null;
-      }
-
-      context = new AudioContextConstructor();
-      audioContextRef.current = context;
-    }
-
-    if (context.state === 'suspended') {
-      await context.resume();
-    }
-
-    if (!audioGainRef.current) {
-      const gainNode = context.createGain();
-      gainNode.gain.value = 0.35;
-      gainNode.connect(context.destination);
-      audioGainRef.current = gainNode;
-    }
-
-    if (!audioBufferRef.current) {
-      const response = await fetch(heartbeatTrack);
-      const arrayBuffer = await response.arrayBuffer();
-      audioBufferRef.current = await context.decodeAudioData(arrayBuffer);
-    }
-
-    return context;
+    audio.pause();
+    audio.currentTime = 0;
   }, []);
 
   const startHeartbeatAudio = useCallback(async () => {
-    if (shouldUseFallbackAudio()) {
-      const fallbackAudio = fallbackAudioRef.current;
-      if (!fallbackAudio) return;
+    const audio = audioRef.current;
+    if (!audio) return;
 
-      fallbackAudio.volume = 0.35;
-      fallbackAudio.currentTime = heartbeatStartTime;
-      void fallbackAudio.play().catch(() => {});
-      return;
-    }
-
-    const context = await prepareHeartbeatAudio();
-    if (!context || !audioBufferRef.current || !audioGainRef.current) {
-      return;
-    }
-
-    stopHeartbeatAudio();
-
-    const source = context.createBufferSource();
-    source.buffer = audioBufferRef.current;
-    source.loop = true;
-    source.loopStart = heartbeatStartTime;
-    source.loopEnd = audioBufferRef.current.duration;
-    source.connect(audioGainRef.current);
-    source.start(0, heartbeatStartTime);
-    audioSourceRef.current = source;
-  }, [prepareHeartbeatAudio, shouldUseFallbackAudio, stopHeartbeatAudio]);
+    audio.volume = 0.35;
+    audio.currentTime = 0;
+    void audio.play().catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (stage === 'reveal') {
@@ -181,18 +110,10 @@ export default function App() {
     stopHeartbeatAudio();
   }, [stage, revealUnlocked, startHeartbeatAudio, stopHeartbeatAudio]);
 
-  useEffect(() => {
-    return () => {
-      stopHeartbeatAudio();
-      void audioContextRef.current?.close();
-    };
-  }, [stopHeartbeatAudio]);
-
   return (
     <div 
       onClick={() => {
         handleReveal();
-        void prepareHeartbeatAudio();
         if (stage === 'console' && consoleFinished) {
           void startHeartbeatAudio();
         }
@@ -200,7 +121,7 @@ export default function App() {
       className={`relative min-h-screen w-full flex items-center justify-center bg-[#050505] selection:bg-pink-deep/30 ${stage === 'console' && consoleFinished ? 'cursor-pointer' : ''}`}
     >
       <audio
-        ref={fallbackAudioRef}
+        ref={audioRef}
         src={heartbeatTrack}
         loop
         playsInline
